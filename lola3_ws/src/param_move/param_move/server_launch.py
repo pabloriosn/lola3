@@ -1,13 +1,11 @@
-#!/usr/bin/env python
-
 import rclpy
-from .service.service_class import Service
+from .service.server import Server
 
 
 def main(args=None) -> None:
     rclpy.init(args=args)
 
-    service = Service()
+    service = Server()
 
     rclpy.spin(service)
 

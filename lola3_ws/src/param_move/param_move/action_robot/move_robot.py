@@ -1,5 +1,7 @@
 from rclpy.node import Node
 
+import time
+
 
 class MoveRobot(Node):
     """
@@ -15,6 +17,7 @@ class MoveRobot(Node):
         :param steps: Number of steps of distances the robot moves forward
         """
         self.get_logger().info(f"Move forward {self._straight_distance * steps} meters")
+        time.sleep(3)
 
     def move_backward(self, steps: float = 1.) -> None:
         """
@@ -22,6 +25,7 @@ class MoveRobot(Node):
         :param steps: Number of steps of distances the robot moves backward
         """
         self.get_logger().info(f"Move backward {self._straight_distance * steps} meters")
+        time.sleep(3)
 
     def turn_right(self, angle: int = 90) -> None:
         """
@@ -29,6 +33,7 @@ class MoveRobot(Node):
         :param angle: int angle of rotation to the right
         """
         self.get_logger().info(f"Move Right {angle}º")
+        time.sleep(3)
 
     def turn_left(self, angle: int = 90) -> None:
         """
@@ -36,9 +41,11 @@ class MoveRobot(Node):
         :param angle: int angle of rotation to the left
         """
         self.get_logger().info(f"Move Left {angle}º")
+        time.sleep(3)
 
     def stop_robot(self, num=None) -> None:
         """
         Publish the stop signal to robot: linear and angular velocity is 0
         """
         self.get_logger().info("Stop the Robot")
+        time.sleep(3)

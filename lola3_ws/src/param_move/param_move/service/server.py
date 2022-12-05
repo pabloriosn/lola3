@@ -4,7 +4,7 @@ from custom_service.srv import ActionRobot
 from ..action_robot.move_robot import MoveRobot
 
 
-class Service(Node):
+class Server(Node):
 
     def __init__(self, service_name: str = "Action_service") -> None:
         # Initialize the node
@@ -15,13 +15,13 @@ class Service(Node):
         self.get_logger().info("Service up, waiting action")
 
         # Define action that can performance the robot
-        self.robot = MoveRobot()
+        self._robot = MoveRobot()
         self._action_dict = {
-            'forward': self.robot.move_forward,
-            'backward': self.robot.move_backward,
-            'right': self.robot.turn_right,
-            'left': self.robot.turn_left,
-            'stop': self.robot.stop_robot
+            'forward': self._robot.move_forward,
+            'backward': self._robot.move_backward,
+            'right': self._robot.turn_right,
+            'left': self._robot.turn_left,
+            'stop': self._robot.stop_robot
         }
 
     def _launch_action_callback(self, request, response) -> bool:
