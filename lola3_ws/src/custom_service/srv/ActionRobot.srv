@@ -1,0 +1,4 @@
+string action   # action to be performed by the robot
+int64 distance  # angle or distance to be performed by the robot
+---
+bool success    # indicate successful run of triggered service
