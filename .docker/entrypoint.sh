@@ -6,10 +6,10 @@ source /opt/ros/$ROS_DISTRO/setup.bash
 echo "Sourced ROS 2 $ROS_DISTRO"
 
 # Source the base workspace, if built
-if [ -f /lola_ws/install/setup.bash ]
+if [ -f /$WORKSPACE/install/setup.bash ]
 then
-  echo "source /lola_ws/install/setup.bash" >> ~/.bashrc
-  source /lola_ws/install/setup.bash
+  echo "source /$WORKSPACE/install/setup.bash" >> ~/.bashrc
+  source /$WORKSPACE/install/setup.bash
   echo "Sourced lola base workspace"
 fi
 
