@@ -1,0 +1,7 @@
+repositories:
+
+  # Lola Repos
+  rplidar_ros2:
+    type: git
+    url: https://github.com/babakhani/rplidar_ros2
+    version: ros2

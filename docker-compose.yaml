@@ -1,0 +1,26 @@
+services:
+  # Base image containing dependencies.
+  base:
+    container_name: lola
+    image: lola_humble
+    build:
+      context: .
+      dockerfile: .docker/Dockerfile
+    # Interactive shell
+    stdin_open: true
+    tty: true
+    # Networking and IPC for ROS 2
+    network_mode: host
+    ipc: host
+    # Allows graphical programs in the container.
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    privileged: true
+    volumes:
+      # Allow for serial ports connection
+      - /dev:/dev
+      # Allow graphical programs in the container
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    command: bash
