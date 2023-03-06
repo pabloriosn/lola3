@@ -1,4 +1,6 @@
 from setuptools import setup
+import os
+from glob import glob
 
 package_name = 'base_lola'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name), glob('launch/*launch.[pxy][yma]*')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -20,7 +23,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'base_lola = base_lola.lolaHW:main'
+            'base_lola = base_lola.lolaHW:main',
+            'controller_lola = base_lola.lola_controller:main',
+            'twist_publisher = base_lola.twist_publisher:main'
         ],
     },
 )

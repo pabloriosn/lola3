@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-
+import sys
 import serial
 import time
 import struct
@@ -12,55 +12,98 @@ from sensor_msgs.msg import JointState
 
 class HWClass(Node):
     """
-    TEXTO
+    //*********************************
+    // Method: __init__
+    // Fullname: Hardware Class Constructor
+    // Access: Public
+    // Returns: None
+    // Parameters:
+        device_ard : str : The name of the device file corresponding to the Arduino board.
+        baudrate : int : The baud rate of the serial communication with the Arduino board.
+    // Description:
+        Initializes the HWClass node and its parameters. It creates a publisher for wheel state information and
+        a subscriber for wheel velocity commands. It opens a serial connection with the Arduino board, reads the
+        current encoder values and discards the first line of data from the Arduino board.
+    //*********************************
     """
-    def __init__(self, device_ard: str = 'dev/arduino', baudrate: int = 115200) -> None:
+    def __init__(self) -> None:
+
         super().__init__('hwinterface')
 
-        # Timer Publisher
-        # TODO get param
-        self._timer_publisher: float = 1/6
+        self.declare_parameter('device_ard', 'NULL')
+        self.declare_parameter('baudrate', 0)
+        self.declare_parameter('timer_publisher', 0)
+        self.declare_parameter('name_pub', 'NULL')
+        self.declare_parameter('name_sub', 'NULL')
 
+
+        self.device_ard = self.get_parameter('device_ard').get_parameter_value().string_value
+        self.baudrate = self.get_parameter('baudrate').value
+        self._timer_publisher = 1/self.get_parameter('timer_publisher').value
+        self._name_pub =
+        self._name_sub = 
+
+
+        self.lastTwistTime = 0
         self._last_time = 0
         self._timeout = 5
 
-        # TODO entender y cambiar
-        self._pasos_vuelta = 356.3 * 2
-        self._kdato = 36.28
+        self._pasos_vuelta = 356.3 * 2 #Numero de pasos que da el encoder para dar una vuelta completa
+        self._kdato = 36.28 #representa una constante que se utiliza para convertir la velocidad angular a entero
 
         # Create a ROS 2 publisher for wheel state information
-        self._name_pub = "wheel_state"
+
         self._wheel_pub = self.create_publisher(JointState, self._name_pub, 10)
         self._timer = self.create_timer(self._timer_publisher, self._publisher_callback)
-        # TODO Poner texto de aviso
+
+        self.get_logger().info(f"Publisher {self._name_pub} running")
 
         # Create a ROS 2 subscriber for wheel velocity commands
-        self._name_sub = "cmd_wheel"
+
         self.create_subscription(JointState, self._name_sub, self._callback_vel, 1)
+        self.get_logger().info(f"Subscriber {self._name_sub} running")
 
         # Open a serial connection to the Arduino device
-        self.arduino = serial.Serial(device_ard, baudrate)
-        time.sleep(0.01)
-
-        # Check arduino connection
-        if self.arduino.isOpen():
-            self.get_logger().info(f"Device {device_ard} is conected")
-        else:
-            # TODO Stop the program
-            self.get_logger().info(f"An error with arduino {device_ard} ... Restart the arduino")
-
-        # Read the current encoder values
-        self.steps_enc_left, self.time_enc_left, self.steps_enc_right, self.time_enc_right = self._read_encoder()
+        try:
+            self.arduino = serial.Serial(self.device_ard, self.baudrate)
+            time.sleep(0.01)
+            if self.arduino.isOpen():
+                self.get_logger().info(f"Device {self.device_ard} is connected")
+            else:
+                self.get_logger().error(f"Failed to connect to device {self.device_ard}")
+                rclpy.shutdown()
+                sys.exit(1)
+        except serial.SerialException:
+            self.get_logger().error(f"Failed to open serial port {self.device_ard}")
+            rclpy.shutdown()
+            sys.exit(1)
 
         # Read and discard the first line of data from the Arduino device
         data = self.arduino.readline()
 
+        # Read the current encoder values
+        self.steps_enc_left, self.time_enc_left, self.steps_enc_right, self.time_enc_right = self._read_encoder()
+
+    """
+    //*********************************
+    // Method: _read_encoder
+    // Access: Private
+    // Returns:
+        steps_enc_left, time_enc_left, steps_enc_right, time_enc_right : tuple : The encoder data from the left
+        and right wheels.
+    // Parameters: None
+    // Description:
+        Sends a 'N' character to the Arduino board to request encoder data. Reads the data from the serial port
+        and retrieves the encoder steps and time values for both wheels. Discards the first and last lines of data
+        from the Arduino board.
+    //*********************************
+    """
     def _read_encoder(self):
 
         # Send the 'N' character to the serial port to request encoder data
         self.arduino.write(str('N').encode())
 
-        # TODO arreglar esta forma de leer
+
         # Read the data from the serial port
         # Read the first line, but discard the data
         self.arduino.readline()
@@ -77,8 +120,23 @@ class HWClass(Node):
         self.arduino.readline()
 
         return steps_enc_left, time_enc_left, steps_enc_right, time_enc_right
-
+    """
+    // ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** *
+    //Method: _publisher_callback
+    //Access: Private
+    //Returns: None
+    //Parameters: None
+    //Description: 
+        Reads the encoder data from the Arduino board and calculates the elapsed time and distance travelled 
+        since the last measurement for the left and right wheels. Updates the last measurement values for both wheels.
+        Calculates the position and velocity for both wheels and creates a new JointState message object with 
+        these values. Publishes the JointState message to the 'wheel_state' topic and logs the velocity information. 
+    // ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** *
+    """
     def _publisher_callback(self):
+        """
+
+        """
 
         # Check if it is still receiving data
         self._check_alive()
@@ -86,83 +144,94 @@ class HWClass(Node):
         # Read the encoder data
         steps_enc_left, time_enc_left, steps_enc_right, time_enc_right = self._read_encoder()
 
-        #TODO Unificar el mensaje en uno.
 
-        # Calculate the elapsed time and distance travelled since the last measurement for the right wheel
+        # Calculate the elapsed time and distance travelled since the last measurement for the right and left wheel
         dt_right = float(time_enc_right - self.time_enc_right) * (10 ** -6)
         dsteps_right = float(steps_enc_right - self.steps_enc_right)
 
-        # Update the last measurement values for the right wheel
-        self.time_enc_right = time_enc_right
-        self.steps_enc_right = steps_enc_right
-
-        # Calculate the position and velocity for the right wheel
-        posD = (steps_enc_right / self.pasos_vuelta) * 2 * pi
-        wd = ((dsteps_right / self.pasos_vuelta) * 2 * pi) / dt_right
-
-        # Publish the right wheel position and velocity information
-        self._send_message('RIGHT', posD, wd)
-
-        # Calculate the elapsed time and distance travelled since the last measurement for the left wheel
         dt_left = float((time_enc_left - self.time_enc_left) * (10 ** -6))
         dsteps_left = float(steps_enc_left - self.steps_enc_left)
 
-        # Update the last measurement values for the left wheel
+        # Update the last measurement values for the right and left wheel
+        self.time_enc_right = time_enc_right
+        self.steps_enc_right = steps_enc_right
+
         self.time_enc_left = time_enc_left
         self.steps_enc_left = steps_enc_left
 
-        # Calculate the position and velocity for the left wheel
-        posI = (steps_enc_left / self.pasos_vuelta) * 2 * pi
-        wi = ((dsteps_left / self.pasos_vuelta) * 2 * pi) / dt_left
+        # Calculate the position and velocity for the right and left wheel
+        posD = (steps_enc_right / self._pasos_vuelta) * 2 * pi
+        wd = ((dsteps_right / self._pasos_vuelta) * 2 * pi) / dt_right
 
-        # Publish the left wheel position and velocity information
-        self._send_message('LEFT', posI, wi)
+        posI = (steps_enc_left / self._pasos_vuelta) * 2 * pi
+        wi = ((dsteps_left / self._pasos_vuelta) * 2 * pi) / dt_left
 
-        # Print velocity information
-        self.get_logger().info(f" {wi}, {wd}")
-
-    def _send_message(self, name, pos, w):
         # Create a new JointState message object
         msg = JointState()
 
         # Set the values of the JointState message object
-        msg.name = [name]  # Set the name of the joint (LEFT or RIGHT)
-        msg.position = [pos]  # Set the position value in radians
-        msg.velocity = [w]  # Set the velocity value in radians per second
+        msg.name = ['LEFT', 'RIGHT']  # Set the names of the joints (LEFT and RIGHT)
+        msg.position = [posI, posD]  # Set the position values in radians for the left and right wheels
+        msg.velocity = [wi, wd]  # Set the velocity values in radians per second for the left and right wheels
         msg.header.stamp = self.get_clock().now().to_msg()  # Set the timestamp
 
         # Publish the JointState message to the 'wheel_state' topic
         self._wheel_pub.publish(msg)
 
+        # Print velocity information
+        self.get_logger().info(f"The real left velocity is {wi}, and right {wd}")
+
+    """
+    // ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** *
+    //Method: _check_alive
+    //Access: Private
+    //Returns: None
+    //Parameters: None
+    //Description: 
+        Checks if the time since the last twist message exceeds the timeout value. If so, 
+        sends a '?' character to the Arduino board to request new data and logs a message indicating that 
+        the robot has stopped due to not receiving data.
+
+    // ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** *
+    """
     def _check_alive(self):
 
         # Check if the time since the last twist message exceeds the timeout value
-        if (datetime.now().second - self.lastTwistTime) > self.twistTimeout:
+        if (datetime.now().second - self.lastTwistTime) > self._timeout:
             # Send a "?" character to the Arduino device to request new data
             self.arduino.write(str('?').encode())
 
             # Log a message indicating that the robot has stopped due to not receiving data
             self.get_logger().info("Parada por no recibir datos")
 
+    """
+    // ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** *
+    //Method: _callback_vel
+    //Access: Private
+    //Returns: None
+    //Parameters: 
+        msg : sensor_msgs.msg.JointState : The message containing the desired velocity commands for the left and right wheels.
+    //Description: 
+        Extracts the desired angular velocities from the JointState message and converts them from rad/s 
+        to an integer data value in the range 0-127. Limits the data value to the range 10-127 and adjusts 
+        the sign if necessary. Adds an offset of 256 to the data value if it is negative. Sends the data 
+        values to the Arduino board in the format 'V###' using a serial connection. Updates the last twist time 
+        to the current time. Logs the data values (for debugging purposes).
+    // ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** ** *
+    """
     def _callback_vel(self, msg):
-        # Define a lambda function to get the sign of a number
-        sign = lambda x: int(copysign(1, x))
+        """
+        Extracts the desired angular velocities from the JointState message and converts them from rad/s to an integer
+        data value in the range 0-127. Limits the data value to the range 10-127 and adjusts
+        the sign if necessary. Adds an offset of 256 to the data value if it is negative. Sends the data
+        values to the Arduino board in the format 'V###' using a serial connection. Updates the last twist time
+        to the current time. Logs the data values (for debugging purposes).
+        :param msg: Message Twits from ROS 2
+        :return
+        """
 
-        # Extract the desired angular velocities from the JointState message
-        comandD = msg.velocity[0]  # rad/s
-        comandI = msg.velocity[1]  # rad/s
-
-        # Convert the angular velocities from rad/s to an integer data value in the range 0-127
-        datod = int(round(comandD * self.kdato))
-        datoi = int(round(comandI * self.kdato))
-
-        # Limit the data value to the range 10-127 and adjust the sign if necessary
-        datod = min(127, max(10 * sign(datod), datod)) if datod != 0 else 0
-        datoi = min(127, max(10 * sign(datoi), datoi)) if datoi != 0 else 0
-
-        # Add an offset of 256 to the data value if it is negative
-        datod = 256 + datod if datod < 0 else datod
-        datoi = 256 + datoi if datoi < 0 else datoi
+        datod = msg.velocity[0]  # formated
+        datoi = msg.velocity[1]  # formated
 
         # Log the data values (for debugging purposes)
         self.get_logger().info(f"datod: {datod} y datoi: {datoi}")
@@ -172,8 +241,19 @@ class HWClass(Node):
 
         # Update the last twist time to the current time
         self.lastTwistTime = datetime.now().second
-
-
+"""
+//*********************************
+// Method: main
+// Access: Public
+// Returns: None
+// Parameters: 
+    args : list : Command line arguments.
+// Description: 
+    Initializes the ROS2 system with the given arguments. Creates an instance of the HWClass node implementation,
+    starts the ROS2 event loop and waits for it to stop. Cleans up the node resources when the event loop is stopped,
+    and shuts down the ROS2 system.
+//*********************************
+"""
 def main(args=None):
     # Initialize the ROS2 system with the given arguments
     rclpy.init(args=args)
