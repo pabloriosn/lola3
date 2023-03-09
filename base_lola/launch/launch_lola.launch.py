@@ -25,7 +25,7 @@ def generate_launch_description():
         ),
         Node(
             package='base_lola',
-            executable='twist_publisher',
-            name='twist_publisher'
+            executable='move',
+            name='move_robot'
         )
     ])

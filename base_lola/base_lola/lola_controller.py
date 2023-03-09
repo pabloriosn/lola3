@@ -3,6 +3,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Twist
 import math
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Point, Quaternion
 
 
 class OdometryCalculator(Node):
@@ -15,7 +17,10 @@ class OdometryCalculator(Node):
         self.publisher = self.create_publisher(JointState, 'cmd_wheel', 10)
         self.timer = self.create_timer(0.1, self.publisher_callback)
 
-        self.subscription = self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 10)
+        self.subscription_cmd = self.create_subscription(Twist, 'cmd_vel', self.cmd_vel_callback, 10)
+
+        self.publisher_odom = self.create_publisher(Odometry, 'odom', 10)
+
 
         self.velocidad_lineal = 0
         self.angulo = 0 #rad/s
@@ -31,8 +36,12 @@ class OdometryCalculator(Node):
         self.L = 0.536
 
     def cmd_vel_callback(self, msg):
+
         self.velocidad_lineal = msg.linear.x
+        self.get_logger().info(f"La velocidad lineal recibida por cmd_vel: {self.velocidad_lineal}")
         self.angulo = msg.angular.z #rad/s
+
+        self.get_logger().info(f"El angulo recibido por cmd_vel: {self.angulo}")
 
     def calcular_velocidad_angular_ruedas(self):
 
@@ -131,6 +140,29 @@ class OdometryCalculator(Node):
         self.get_logger().info(f"x:{self.x}")
         self.get_logger().info(f"y:{self.y}")
         self.get_logger().info(f"theta:{self.theta}")
+
+        # Create an Odometry message
+        odom = Odometry()
+        odom.header.stamp = self.get_clock().now().to_msg()
+        odom.header.frame_id = 'odom'
+        odom.child_frame_id = 'base_link'
+
+        # Set the position of the robot
+        odom.pose.pose.position = Point()
+        odom.pose.pose.position.x = self.x
+        odom.pose.pose.position.y = self.y
+        odom.pose.pose.position.z = 0.0
+
+        # Set the orientation of the robot
+        odom.pose.pose.orientation = Quaternion()
+        odom.pose.pose.orientation.x = 0.0
+        odom.pose.pose.orientation.y = 0.0
+        odom.pose.pose.orientation.z = math.sin(self.theta/2.0)
+        odom.pose.pose.orientation.w = math.cos(self.theta/2.0)
+
+        # Publish the Odometry message
+        self.get_logger().info(f"PUBLICANDO ODOMETRia .....")
+        self.publisher_odom.publish(odom)
 
 
 def main(args=None):

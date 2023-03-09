@@ -25,7 +25,9 @@ setup(
         'console_scripts': [
             'base_lola = base_lola.lolaHW:main',
             'controller_lola = base_lola.lola_controller:main',
-            'twist_publisher = base_lola.twist_publisher:main'
+            'twist_publisher = base_lola.twist_publisher:main',
+            'move = base_lola.test_move:main',
+            'api_robot = base_lola.move_robot:MoveRobot'
         ],
     },
 )

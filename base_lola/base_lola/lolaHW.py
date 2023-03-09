@@ -40,10 +40,9 @@ class HWClass(Node):
         self.device_ard = self.get_parameter('device_ard').get_parameter_value().string_value
         self.baudrate = self.get_parameter('baudrate').value
         self._timer_publisher = 1/self.get_parameter('timer_publisher').value
-        self._name_pub =
-        self._name_sub = 
 
-
+        self._name_pub = 'wheel_state'
+        self._name_sub = 'cmd_wheel'
         self.lastTwistTime = 0
         self._last_time = 0
         self._timeout = 5
