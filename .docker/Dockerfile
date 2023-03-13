@@ -1,3 +1,6 @@
+#############################
+# Base Image for Doro Robot #
+#############################
 FROM ros:humble-ros-base
 SHELL ["/bin/bash", "-c"]
 
@@ -13,8 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install additional Python modules
-RUN pip3 install pyserial
-RUN pip3 install tf
+RUN pip3 install pyserial tf
 
 # Install additional ROS packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -38,12 +40,8 @@ WORKDIR /$WORKSPACE/src
 COPY dependencies.repos ./
 RUN vcs import < dependencies.repos
 
-# Import lola packages
-COPY ./base_lola/ ./base_lola/
-
 WORKDIR /$WORKSPACE
-RUN source /opt/ros/$ROS_DISTRO/setup.bash && colcon build --symlink-install
 
-# Set up the entrypoint
+# Set up the entrypoint, which is in charge of building the workspace to be able to mount packages from host
 COPY ./.docker/entrypoint.sh /
 ENTRYPOINT [ "/entrypoint.sh" ]

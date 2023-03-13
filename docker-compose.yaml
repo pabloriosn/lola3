@@ -23,4 +23,6 @@ services:
       - /dev:/dev
       # Allow graphical programs in the container
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-    command: bash
+      # Mount the code volumes
+      - ./base_lola:/lola_ws/src/base_lola
+    command: bash #ros2 launch rplidar_ros view_rplidar.launch.py
