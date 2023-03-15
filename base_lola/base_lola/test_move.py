@@ -1,23 +1,19 @@
 import rclpy
 import time
-
+from threading import Thread
 from base_lola.move_robot import MoveRobot
-
 
 def main(args=None):
     rclpy.init(args=args)
-
-
-
     node = rclpy.create_node("test_move_square")
-
     robot = MoveRobot(node)
-    node.get_logger().info("test_move_square node started")
 
-    while not robot.position_robot and rclpy.ok():
-        time.sleep(0.1)
 
-    node.get_logger().info("Avanti marinero")
+    # Espera a que el nodo reciba la posición inicial del robot
+    #while not robot.position_robot and rclpy.ok():
+        #time.sleep(0.1)
+
+    print("Avanti marinero")
     robot.move_forward()
     robot.turn_left()
 
@@ -32,9 +28,7 @@ def main(args=None):
 
     robot.stop_robot()
 
-    node.destroy_node()
     rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()

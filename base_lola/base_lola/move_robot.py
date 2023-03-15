@@ -56,6 +56,8 @@ class MoveRobot:
         self._move(steps, -1)
         self.stop_robot()
 
+    def start(self):
+        rclpy.spin(self)
     def turn_right(self, angle: int = 90) -> None:
         """
         Move the robot to the right
@@ -182,6 +184,7 @@ class MoveRobot:
         Get the new update position of robot from topic /odom
         :param msg: Odometry ROS2 message
         """
+        self._node.get_logger().info(f"Odometría recibida {msg}")
         self.position_robot = msg.pose.pose.position.x, msg.pose.pose.position.y
 
         self._node.get_logger().info(f"Odometría recibida x:{msg.pose.pose.position.x} y: {msg.pose.pose.position.y}")

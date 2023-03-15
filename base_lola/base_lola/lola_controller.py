@@ -3,6 +3,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Twist
 import math
+import tf
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point, Quaternion
 
@@ -61,8 +62,8 @@ class OdometryCalculator(Node):
         # Obtener la velocidad de las ruedas derecha e izquierda (en radianes por segundo)
 
         vel_left, vel_right = self.calcular_velocidad_angular_ruedas()
-        self.get_logger().info(f"The desire left wheel speed is: {vel_left}")
-        self.get_logger().info(f"The desire right wheel speed is: {vel_right}")
+        self.get_logger().info(f"The desire wheel speed L: {vel_left} y R:{vel_right} ")
+
 
         # Extract the desired angular velocities from the JointState message
 
@@ -141,6 +142,8 @@ class OdometryCalculator(Node):
         self.get_logger().info(f"y:{self.y}")
         self.get_logger().info(f"theta:{self.theta}")
 
+        quat = tf.transformations.quaternion_from_euler(0, 0, self.theta)
+
         # Create an Odometry message
         odom = Odometry()
         odom.header.stamp = self.get_clock().now().to_msg()
@@ -155,10 +158,10 @@ class OdometryCalculator(Node):
 
         # Set the orientation of the robot
         odom.pose.pose.orientation = Quaternion()
-        odom.pose.pose.orientation.x = 0.0
-        odom.pose.pose.orientation.y = 0.0
-        odom.pose.pose.orientation.z = math.sin(self.theta/2.0)
-        odom.pose.pose.orientation.w = math.cos(self.theta/2.0)
+        odom.pose.pose.orientation.x = quat[0]
+        odom.pose.pose.orientation.y = quat[1]
+        odom.pose.pose.orientation.z = quat[2]
+        odom.pose.pose.orientation.w = quat[3]
 
         # Publish the Odometry message
         self.get_logger().info(f"PUBLICANDO ODOMETRia .....")
