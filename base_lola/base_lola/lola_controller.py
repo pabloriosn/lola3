@@ -1,4 +1,5 @@
 import rclpy
+import transforms3d as tf3d
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Twist
@@ -38,10 +39,10 @@ class OdometryCalculator(Node):
     def cmd_vel_callback(self, msg):
 
         self.velocidad_lineal = msg.linear.x
-        self.get_logger().info(f"La velocidad lineal recibida por cmd_vel: {self.velocidad_lineal}")
+        #self.get_logger().info(f"La velocidad lineal recibida por cmd_vel: {self.velocidad_lineal}")
         self.angulo = msg.angular.z #rad/s
 
-        self.get_logger().info(f"El angulo recibido por cmd_vel: {self.angulo}")
+        #self.get_logger().info(f"El angulo recibido por cmd_vel: {self.angulo}")
 
     def calcular_velocidad_angular_ruedas(self):
 
@@ -61,8 +62,7 @@ class OdometryCalculator(Node):
         # Obtener la velocidad de las ruedas derecha e izquierda (en radianes por segundo)
 
         vel_left, vel_right = self.calcular_velocidad_angular_ruedas()
-        self.get_logger().info(f"The desire left wheel speed is: {vel_left}")
-        self.get_logger().info(f"The desire right wheel speed is: {vel_right}")
+        self.get_logger().info(f"The desire wheel speed L: {vel_left} y R:{vel_right} ")
 
         # Extract the desired angular velocities from the JointState message
 
@@ -141,6 +141,8 @@ class OdometryCalculator(Node):
         self.get_logger().info(f"y:{self.y}")
         self.get_logger().info(f"theta:{self.theta}")
 
+        quat = self.euler_to_quaternion(0, 0, self.theta)
+
         # Create an Odometry message
         odom = Odometry()
         odom.header.stamp = self.get_clock().now().to_msg()
@@ -155,15 +157,25 @@ class OdometryCalculator(Node):
 
         # Set the orientation of the robot
         odom.pose.pose.orientation = Quaternion()
-        odom.pose.pose.orientation.x = 0.0
-        odom.pose.pose.orientation.y = 0.0
-        odom.pose.pose.orientation.z = math.sin(self.theta/2.0)
-        odom.pose.pose.orientation.w = math.cos(self.theta/2.0)
+        odom.pose.pose.orientation.x = quat[0]
+        odom.pose.pose.orientation.y = quat[1]
+        odom.pose.pose.orientation.z = quat[2]
+        odom.pose.pose.orientation.w = quat[3]
 
         # Publish the Odometry message
         self.get_logger().info(f"PUBLICANDO ODOMETRia .....")
         self.publisher_odom.publish(odom)
 
+    def euler_to_quaternion(self, roll, pitch, yaw):
+        qx = math.sin(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) - math.cos(roll / 2) * math.sin(
+            pitch / 2) * math.sin(yaw / 2)
+        qy = math.cos(roll / 2) * math.sin(pitch / 2) * math.cos(yaw / 2) + math.sin(roll / 2) * math.cos(
+            pitch / 2) * math.sin(yaw / 2)
+        qz = math.cos(roll / 2) * math.cos(pitch / 2) * math.sin(yaw / 2) - math.sin(roll / 2) * math.sin(
+            pitch / 2) * math.cos(yaw / 2)
+        qw = math.cos(roll / 2) * math.cos(pitch / 2) * math.cos(yaw / 2) + math.sin(roll / 2) * math.sin(
+            pitch / 2) * math.sin(yaw / 2)
+        return (qx, qy, qz, qw)
 
 def main(args=None):
     rclpy.init(args=args)

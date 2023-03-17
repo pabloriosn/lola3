@@ -27,7 +27,8 @@ setup(
             'controller_lola = base_lola.lola_controller:main',
             'twist_publisher = base_lola.twist_publisher:main',
             'move = base_lola.test_move:main',
-            'api_robot = base_lola.move_robot:MoveRobot'
+            'api_robot = base_lola.move_robot:MoveRobot',
+            'server = base_lola.odom_server:main'
         ],
     },
 )

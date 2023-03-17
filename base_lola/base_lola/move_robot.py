@@ -1,193 +1,169 @@
-import math
-import time
-
 import rclpy
-import tf
 from rclpy.node import Node
+from rclpy.qos import QoSProfile
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-#from tf.transformations import euler_from_quaternion
+import threading
+import time
+import math
+
+class MovementController(Node):
+    def __init__(self):
+        super().__init__('movement_controller')
+
+        self.odometry = None
+        self.lock = threading.Lock()
+        qos = QoSProfile(depth=10)
+        self.cmd_vel_publisher = self.create_publisher(Twist, 'cmd_vel', qos)
+        self.odometry_subscription = self.create_subscription(
+            Odometry, 'odom', self.odometry_callback, qos)
+        self.subscription_thread = threading.Thread(target=self.spin_thread)
+        self.subscription_thread.start()
+
+        self.differential_error = 0  # Add differential error variable
 
 
-class MoveRobot:
+    def spin_thread(self):
+        rclpy.spin(self)
 
-    def __init__(self, node: Node):
-        """
-        Class to control the robot with parameterized movements
-        """
-        self._angle_target = 0
+    def odometry_callback(self, msg):
+        with self.lock:
+            self.odometry = msg
+            #self.get_logger().warning(f"Mensaje recibido: {msg}")
 
-        # Robot's update position
-        self.position_robot = ()
-        self._yaw_robot = .0
+    def get_odometry(self):
+        with self.lock:
+            return self.odometry
 
-        # Declare ROS subscribers and publishers
-        self._odom_sub_name = 'odom'
-        self._vel_pub_name = 'cmd_vel'
+    def get_position_yaw(self, odometry):
+        x = odometry.pose.pose.position.x
+        y = odometry.pose.pose.position.y
+        quaternion = (
+            odometry.pose.pose.orientation.x,
+            odometry.pose.pose.orientation.y,
+            odometry.pose.pose.orientation.z,
+            odometry.pose.pose.orientation.w,
+        )
+        _, _, yaw = self.quaternion_to_euler(*quaternion)
+        #self.get_logger().warning(f"yaw en get position: {yaw}")
 
-        self._node = node
+        return x, y, yaw
 
-        self._odom_sub = self._node.create_subscription(Odometry, self._odom_sub_name, self._odom_sub_callback, 1)
-        self._vel_pub = self._node.create_publisher(Twist, self._vel_pub_name, 1)
+    def quaternion_to_euler(self, x, y, z, w):
+        t0 = 2.0 * (w * x + y * z)
+        t1 = 1.0 - 2.0 * (x * x + y * y)
+        roll = math.atan2(t0, t1)
 
+        t2 = 2.0 * (w * y - z * x)
+        t2 = 1.0 if t2 > 1.0 else t2
+        t2 = -1.0 if t2 < -1.0 else t2
+        pitch = math.asin(t2)
 
+        t3 = 2.0 * (w * z + x * y)
+        t4 = 1.0 - 2.0 * (y * y + z * z)
+        yaw = math.atan2(t3, t4)
+        #self.get_logger().warning(f"yaw en quaternion to euler: {yaw}")
 
-        # Configurable parameters discrete_move.yaml
-        self._linear_velocity = 0.2
-        self._angular_velocity = 0.5
-        self._straight_distance = 1
-        self._publish_freq = 6
+        return roll, pitch, yaw
 
-    def move_forward(self, steps=1) -> None:
-        """
-        Move the robot forward
-        :param steps: Number of steps of distances the robot moves forward
-        """
-        self._node.get_logger().info(f"Move forward {self._straight_distance * steps} meters")
-        self._move(steps, 1)
-        self.stop_robot()
+    def move_forward(self, distance, speed):
+        self.get_logger().warning("Moving forward")
+        if speed <= 0:
+            raise ValueError("Speed must be positive")
 
-    def move_backward(self, steps=1) -> None:
-        """
-        Move the robot backward
-        :param steps: Number of steps of distances the robot moves backward
-        """
-        print(f"Move backward {self._straight_distance * steps} meters")
-        self._move(steps, -1)
-        self.stop_robot()
+        twist = Twist()
+        twist.linear.x = speed
+        self.move_distance(distance, twist)
 
-    def turn_right(self, angle: int = 90) -> None:
-        """
-        Move the robot to the right
-        :param angle: int angle of rotation to the right
-        """
-        print(f"Move Right {angle}º")
-        self._turn(-1, angle)
-        self.stop_robot()
+    def move_backward(self, distance, speed):
+        if speed <= 0:
+            raise ValueError("Speed must be positive")
+        self.get_logger().warning("Moving backward")
+        twist = Twist()
+        twist.linear.x = -speed
+        self.move_distance(distance, twist)
 
-    def turn_left(self, angle: int = 90) -> None:
-        """
-        Move the robot to the left
-        :param angle: int angle of rotation to the left
-        """
-        print(f"Move Left {angle}º")
-        self._turn(1, angle)
-        self.stop_robot()
+    def turn_left(self, angle, angular_speed):
+        if angular_speed <= 0:
+            raise ValueError("Angular speed must be positive")
 
-    def stop_robot(self) -> None:
-        """
-        Publish the stop signal to robot: linear and angular velocity is 0
-        """
-        r = self._node.create_rate(self._publish_freq)
-        self._publish_topic(0, 0)
-        r.sleep()
+        self.get_logger().warning("Moving left")
+        twist = Twist()
+        twist.angular.z = angular_speed
+        self.move_angle(angle, twist)
 
-    def _move(self, steps: int = 1, forward: int = 1) -> None:
-        """
-        Set the linear velocity until final distance is reached
-        :param steps: Number of steps of distances the robot moves
-        :param forward: 1 - Forward or -1 - Backward
-        """
+    def turn_right(self, angle, angular_speed):
+        if angular_speed <= 0:
+            raise ValueError("Angular speed must be positive")
+        self.get_logger().warning("Moving right")
+        twist = Twist()
+        twist.angular.z = -angular_speed
+        self.move_angle(angle, twist)
 
-        # Calculate the total motion distance
-        distance = self._straight_distance * steps
-        epsilon = 0.005
-        pos_init = self.position_robot
+    def move_distance(self, distance, twist):
+        while self.get_odometry() is None:
+            self.get_logger().warning("Waiting for odometry data")
+            time.sleep(0.1)
 
+        start_odometry = self.get_odometry()
+        start_position = start_odometry.pose.pose.position
+        moved_distance = 0
 
-        #self._publish_topic(forward * self._linear_velocity, 0.0)
+        while moved_distance < distance:
+            # Calculate error correction
+            error_correction = self.differential_error * 0.1
 
-        # Set the velocity forward until distance is reached
-        r = self._node.create_rate(self._publish_freq)
-        while rclpy.ok():
+            # Apply error correction to linear and angular velocities
+            twist.linear.x += error_correction
+            twist.angular.z += error_correction
 
-            pos = self.position_robot
-            if len(pos) < 2:
-                continue  # Skip if position_robot is empty or doesn't have at least 2 elements
+            self.cmd_vel_publisher.publish(twist)
+            current_odometry = self.get_odometry()
+            current_position = current_odometry.pose.pose.position
+            self.get_logger().warning(f"current: {current_position}")
+            moved_distance = ((current_position.x - start_position.x) ** 2 +
+                              (current_position.y - start_position.y) ** 2) ** 0.5
 
-            # Calculate euclidean distance between the current position and the final position,
-            # then calculate the difference (error) with the total motion distance.
-            error = distance - math.hypot(pos[0] - pos_init[0], pos[1] - pos_init[1])
-            self._node.get_logger().info(f"Error {error}")
+            # Update differential error
+            self.differential_error = distance - moved_distance
 
-            if error > epsilon:
-                self._publish_topic(forward * self._linear_velocity, 0)
-                r.sleep()
-            else:
-                break
+        self.stop()
 
+    def move_angle(self, angle, twist):
+        start_odometry = self.get_odometry()
+        while start_odometry is None:
+            self.get_logger().warning("Odometry data is not available yet")
+            time.sleep(0.1)
 
-    def _turn(self, dire: int, turn_angle: int = 90) -> None:
-        """
-        Set the angular velocity until final angle is reached
-        :param dire: 1 -> Left or -1 -> Right
-        :param turn_angle: int angle of rotation
-        """
-        self._update_angle(dire * turn_angle)
-        epsilon = .08
+        _, _, start_yaw = self.get_position_yaw(start_odometry)
+        self.get_logger().warning(f"start: {start_yaw}")
+        moved_angle = 0
 
-        # Turn left
-        if dire == 1:
-            r = self._node.create_rate(self._publish_freq)
-            while rclpy.ok() and self._calculate_angle(self._yaw_robot) > epsilon:
-                self._publish_topic(0, self._angular_velocity)
-                r.sleep()
+        while moved_angle < angle:
+            # Calculate error correction
+            error_correction = self.differential_error * 0.1
 
-        # Turn right
-        if dire == -1:
-            r = self._node.create_rate(self._publish_freq)
-            while rclpy.ok() and self._calculate_angle(self._yaw_robot) > epsilon:
-                self._publish_topic(0, -self._angular_velocity)
-                r.sleep()
+            # Apply error correction only to angular velocity
+            twist.angular.z += error_correction
 
+            self.cmd_vel_publisher.publish(twist)
+            current_odometry = self.get_odometry()
+            _, _, current_yaw = self.get_position_yaw(current_odometry)
+            self.get_logger().warning(f"current: {current_yaw}")
+            moved_angle = abs(current_yaw - start_yaw)
 
-    def _calculate_angle(self, angle_current: float) -> float:
-        """
-        Calculate the difference between the angle_current and the self._angle_target
-        :param angle_current: float angle (radians)
-        :return: difference in radians
-        """
-        dif = (self._angle_target * math.pi / 180 - angle_current) % (360 * math.pi / 180)
-        if dif < math.pi:
-            return dif
-        else:
-            return 2 * math.pi - dif
+            if moved_angle > math.pi:
+                moved_angle = 2 * math.pi - moved_angle
 
+            # Update differential error
+            self.differential_error = angle - moved_angle
 
-    def _update_angle(self, angle: int) -> None:
-        """
-        Calculate the final angle, by adding an angle in degrees
-        :param angle: int angle (degrees)
-        """
-        self._angle_target = (self._angle_target + angle) % 360
+        self.stop()
 
+    def stop(self):
+        twist = Twist()
+        self.cmd_vel_publisher.publish(twist)
 
-    def _publish_topic(self, linear_x: float, angular_z: float) -> None:
-        """
-        Publish message to topic /cmd_vel
-        :param linear_x:
-        :param angular_z:
-        """
-        msg = Twist()
-
-        msg.linear.x = linear_x
-        msg.angular.z = angular_z
-
-        self._vel_pub.publish(msg)
-
-
-    def _odom_sub_callback(self, msg):
-        """
-        Callback for ROS2 subscriber /odom
-        Get the new update position of robot from topic /odom
-        :param msg: Odometry ROS2 message
-        """
-        self.position_robot = msg.pose.pose.position.x, msg.pose.pose.position.y
-
-        self._node.get_logger().info(f"Odometría recibida x:{msg.pose.pose.position.x} y: {msg.pose.pose.position.y}")
-
-        self._yaw_robot = tf.transformations.euler_from_quaternion([msg.pose.pose.orientation.x,
-                                                 msg.pose.pose.orientation.y,
-                                                 msg.pose.pose.orientation.z,
-                                                 msg.pose.pose.orientation.w])[2] % (2 * math.pi)
-
+    def destroy(self):
+        self.destroy_publisher(self.cmd_vel_publisher)
+        self.destroy_subscription(self.odometry_subscription)
