@@ -35,13 +35,13 @@ class MovementController(Node):
         # Initialize differential error
         self.differential_error = 0
 
-def odometry_callback(self, msg):
-    """
-    Odometry callback function to update odometry data.
-    :param msg: Odometry message received from the 'odom' topic.
-    """
-    with self.lock:
-        self.odometry = msg
+    def odometry_callback(self, msg):
+        """
+        Odometry callback function to update odometry data.
+        :param msg: Odometry message received from the 'odom' topic.
+        """
+        with self.lock:
+            self.odometry = msg
 
     def get_odometry(self):
         """
