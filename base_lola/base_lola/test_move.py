@@ -10,9 +10,13 @@ def main(args=None):
 
     # Move the robot in a 1-meter square
     for _ in range(4):
-        movement_controller.move_forward(distance=1, speed=0.2)
+        movement_controller.move_backward(distance=0.1, speed=0.4)
         time.sleep(1)  # Pause to ensure the robot has stopped moving
-        movement_controller.turn_left(angle=90, angular_speed=0.5)
+        movement_controller.turn_left(angle=90, angular_speed=1.0)
+        time.sleep(1)
+        #movement_controller.move_forward(distance=0.5, speed=1.0)
+        #time.sleep(1)  # Pause to ensure the robot has stopped moving
+        movement_controller.turn_right(angle=90, angular_speed=1.0)
         time.sleep(1)
 
     # Stop the robot and shut down the node

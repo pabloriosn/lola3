@@ -15,7 +15,7 @@ class OdometryCalculator(Node):
         # Call superclass constructor and initialize node
         super().__init__('odometry_calculator')
         # Log message to indicate node is running
-        self.get_logger().info(f"Odometry calculator is running")
+        self.get_logger().info(f"lola controller is running")
 
         # Initialize JointState subscriber
         self.subscription = self.create_subscription(JointState, 'wheel_state', self.callback, 1)

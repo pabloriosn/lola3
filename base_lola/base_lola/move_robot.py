@@ -17,6 +17,7 @@ class MovementController(Node):
 
         # Initialize variables for odometry data and thread locking
         self.odometry = None
+        self._angle_target = 0
         self.lock = threading.Lock()
 
         # Set up QoS profile for communication
@@ -34,6 +35,12 @@ class MovementController(Node):
 
         # Initialize differential error
         self.differential_error = 0
+
+    def spin_thread(self):
+        """
+        Thread function to process incoming messages and callbacks.
+        """
+        rclpy.spin(self)
 
     def odometry_callback(self, msg):
         """
@@ -193,32 +200,25 @@ class MovementController(Node):
         # Get initial odometry data and robot position
         start_odometry = self.get_odometry()
         start_position = start_odometry.pose.pose.position
-        moved_distance = 0
+        epsilon = 0.005
 
         # Move the robot forward until the desired distance is covered
-        while moved_distance < distance:
-            # Calculate error correction
-            error_correction = self.differential_error * 0.1
-
-            # Apply error correction to linear and angular velocities
-            twist.linear.x += error_correction
-            twist.angular.z += error_correction
-
-            # Publish Twist message to command velocity publisher
-            self.cmd_vel_publisher.publish(twist)
+        while True:
 
             # Get current odometry data and robot position
             current_odometry = self.get_odometry()
             current_position = current_odometry.pose.pose.position
-            self.get_logger().warning(f"current: {current_position}")
 
             # Calculate the distance the robot has moved since the start of the function
             moved_distance = ((current_position.x - start_position.x) ** 2 +
                               (current_position.y - start_position.y) ** 2) ** 0.5
 
-            # Update differential error
-            self.differential_error = distance - moved_distance
-
+            error = distance - moved_distance
+            if error > epsilon:
+                # Publish Twist message to command velocity publisher
+                self.cmd_vel_publisher.publish(twist)
+            else:
+                break
         # Stop the robot
         self.stop()
 
@@ -237,35 +237,58 @@ class MovementController(Node):
         # Get initial robot yaw angle
         _, _, start_yaw = self.get_position_yaw(start_odometry)
         self.get_logger().warning(f"start: {start_yaw}")
-        moved_angle = 0
 
+        epsilon = 0.08
+
+        # Calculate target angle
+        angle_deg = math.degrees(angle)
+        self._angle_target = self._angle_target + angle_deg
+
+        while True:
+            # Get current robot yaw angle
+            current_odometry = self.get_odometry()
+            _, _, current_yaw = self.get_position_yaw(current_odometry)
+
+            # Calculate the angle error
+            error = self._angle_target - current_yaw
+            error = (error + math.pi) % (2 * math.pi) - math.pi
+            #self.get_logger().warning(f"error: {error}")
+            if abs(error) > epsilon:
+                self.cmd_vel_publisher.publish(twist)
+            else:
+                break
+        """
         # Turn the robot until the desired angle is covered
-        while moved_angle < angle:
-            # Calculate error correction
-            error_correction = self.differential_error * 0.1
-
-            # Apply error correction only to angular velocity
-            twist.angular.z += error_correction
-
+        while moved_angle < adjusted_angle:
             # Publish Twist message to command velocity publisher
             self.cmd_vel_publisher.publish(twist)
 
             # Get current robot yaw angle
             current_odometry = self.get_odometry()
             _, _, current_yaw = self.get_position_yaw(current_odometry)
-            self.get_logger().warning(f"current: {current_yaw}")
 
             # Calculate the angle the robot has turned since the start of the function
             moved_angle = abs(current_yaw - start_yaw)
 
+            self.differential_error = angle - moved_angle
             # Normalize the angle
             if moved_angle > math.pi:
                 moved_angle = 2 * math.pi - moved_angle
-
-            # Update differential error
-            self.differential_error = angle - moved_angle
-
+        """
+        # Stop the robot
         self.stop()
+
+    def _calculate_angle(self, angle_current: float) -> float:
+        """
+        Calculate the difference between the angle_current and the self._angle_target
+        :param angle_current: float angle (radians)
+        :return: difference in radians
+        """
+        dif = (self._angle_target * math.pi / 180 - angle_current) % (360 * math.pi / 180)
+        if dif < math.pi:
+            return dif
+        else:
+            return 2 * math.pi - dif
 
     def stop(self):
         """
