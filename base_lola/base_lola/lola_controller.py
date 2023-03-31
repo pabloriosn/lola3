@@ -14,6 +14,10 @@ class OdometryCalculator(Node):
         """
         # Call superclass constructor and initialize node
         super().__init__('odometry_calculator')
+
+        # Set a flag to stop
+        self.shutdown_flag = False
+
         # Log message to indicate node is running
         self.get_logger().info(f"lola controller is running")
 
@@ -51,6 +55,7 @@ class OdometryCalculator(Node):
         Update linear and angular velocities from the Twist message.
         :param msg: Twist message with linear and angular velocities.
         """
+        self.shutdown_flag = False  # Reset the flag when new data is received
         # Update linear and angular velocities based on Twist message input
         self.velocidad_lineal = msg.linear.x
         self.angulo = msg.angular.z  # rad/s
@@ -71,10 +76,13 @@ class OdometryCalculator(Node):
         """
         Publish calculated wheel speeds as a JointState message to the 'cmd_wheel' topic.
         """
+        if self.shutdown_flag:  # Do not publish if the shutdown flag is set
+            return
+
         # Get the angular velocity of the right and left wheels (in radians per second)
 
         vel_left, vel_right = self.calcular_velocidad_angular_ruedas()
-        self.get_logger().info(f"The desire wheel speed L: {vel_left} y R:{vel_right} ")
+        #self.get_logger().info(f"The desire wheel speed L: {vel_left} y R:{vel_right} ")
 
         # Convert the angular velocities from rad/s to an integer data value in the range 0-127
 
@@ -118,6 +126,7 @@ class OdometryCalculator(Node):
         Update odometry based on JointState message and publish as an Odometry message to the 'odom' topic.
         :param msg: JointState message with wheel position and angular velocity.
         """
+        self.shutdown_flag = False  # Reset the flag when new data is received
         # Find the indices of the left and right wheels in the JointState message
 
         try:
@@ -220,7 +229,12 @@ def main(args=None):
     odometry_calculator = OdometryCalculator()
 
     # Spin the node until it is shutdown
-    rclpy.spin(odometry_calculator)
+    try:
+        rclpy.spin(odometry_calculator)
+    except KeyboardInterrupt:
+        # If KeyboardInterrupt is raised, set the shutdown flag to stop publishing
+        odometry_calculator.shutdown_flag = True
+        odometry_calculator.get_logger().info("Shutting down...")
 
     # Destroy the node
     odometry_calculator.destroy_node()

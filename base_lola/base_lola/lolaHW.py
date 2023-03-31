@@ -16,6 +16,7 @@ class HWClass(Node):
     a subscriber for wheel velocity commands. It opens a serial connection with the Arduino board, reads the
     current encoder values and discards the first line of data from the Arduino board.
     """
+
     def __init__(self) -> None:
 
         super().__init__('hwinterface')
@@ -26,10 +27,9 @@ class HWClass(Node):
         self.declare_parameter('name_pub', 'NULL')
         self.declare_parameter('name_sub', 'NULL')
 
-
         self.device_ard = self.get_parameter('device_ard').get_parameter_value().string_value
         self.baudrate = self.get_parameter('baudrate').value
-        self._timer_publisher = 1/self.get_parameter('timer_publisher').value
+        self._timer_publisher = 1 / self.get_parameter('timer_publisher').value
 
         self._name_pub = 'wheel_state'
         self._name_sub = 'cmd_wheel'
@@ -37,8 +37,8 @@ class HWClass(Node):
         self._last_time = 0
         self._timeout = 5
 
-        self._pasos_vuelta = 356.3 * 2 #Numero de pasos que da el encoder para dar una vuelta completa
-        self._kdato = 36.28 #representa una constante que se utiliza para convertir la velocidad angular a entero
+        self._pasos_vuelta = 356.3 * 2  # Numero de pasos que da el encoder para dar una vuelta completa
+        self._kdato = 36.28  # representa una constante que se utiliza para convertir la velocidad angular a entero
 
         # Create a ROS 2 publisher for wheel state information
 
@@ -54,8 +54,8 @@ class HWClass(Node):
 
         # Open a serial connection to the Arduino device
         try:
-            self.arduino = serial.Serial(self.device_ard, self.baudrate)
-            time.sleep(0.01)
+            self.arduino = serial.Serial(self.device_ard, self.baudrate, timeout=1)
+            time.sleep(0.3)
             if self.arduino.isOpen():
                 self.get_logger().info(f"Device {self.device_ard} is connected")
             else:
@@ -69,10 +69,10 @@ class HWClass(Node):
 
         # Read and discard the first line of data from the Arduino device
         data = self.arduino.readline()
+        self.get_logger().info(f"DATA de la primera linea {data} ")
 
         # Read the current encoder values
         self.steps_enc_left, self.time_enc_left, self.steps_enc_right, self.time_enc_right = self._read_encoder()
-
 
     def _read_encoder(self):
         """
@@ -82,7 +82,6 @@ class HWClass(Node):
         """
         # Send the 'N' character to the serial port to request encoder data
         self.arduino.write(str('N').encode())
-
 
         # Read the data from the serial port
         # Read the first line, but discard the data
@@ -98,7 +97,6 @@ class HWClass(Node):
 
         # Read the final line, but discard the data
         self.arduino.readline()
-
         return steps_enc_left, time_enc_left, steps_enc_right, time_enc_right
 
     def _publisher_callback(self):
@@ -151,7 +149,6 @@ class HWClass(Node):
         # Print velocity information
         self.get_logger().info(f"The real left velocity is {wi}, and right {wd}")
 
-
     def _check_alive(self):
         """
         Checks if the time since the last twist message exceeds the timeout value. If so,
@@ -166,7 +163,6 @@ class HWClass(Node):
 
             # Log a message indicating that the robot has stopped due to not receiving data
             self.get_logger().info("Parada por no recibir datos")
-
 
     def _callback_vel(self, msg):
         """
@@ -191,6 +187,7 @@ class HWClass(Node):
         # Update the last twist time to the current time
         self.lastTwistTime = datetime.now().second
 
+
 def main(args=None):
     """
     Initializes the ROS2 system with the given arguments. Creates an instance of the HWClass node implementation,
@@ -202,15 +199,19 @@ def main(args=None):
 
     # Create an instance of the HwClass node implementation
     minimal_subscriber = HWClass()
+    try:
+        # Start the ROS2 event loop and wait for it to stop
+        rclpy.spin(minimal_subscriber)
 
-    # Start the ROS2 event loop and wait for it to stop
-    rclpy.spin(minimal_subscriber)
+    except KeyboardInterrupt:
+        minimal_subscriber.get_logger().info("Keyboard interrupt, stopping robot")
 
-    # Clean up the node resources when the event loop is stopped
-    minimal_subscriber.destroy_node()
+    finally:
+        # Clean up the node resources when the event loop is stopped
+        minimal_subscriber.destroy_node()
 
-    # Shut down the ROS2 system
-    rclpy.shutdown()
+        # Shut down the ROS2 system
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':

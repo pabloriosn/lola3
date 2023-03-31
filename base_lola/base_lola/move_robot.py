@@ -18,6 +18,9 @@ class MovementController(Node):
         # Initialize variables for odometry data and thread locking
         self.odometry = None
         self._angle_target = 0
+        self.x = 0.0
+        self.y = 0.0
+        self.current_yaw = 0.0
         self.lock = threading.Lock()
 
         # Set up QoS profile for communication
@@ -36,10 +39,12 @@ class MovementController(Node):
         # Initialize differential error
         self.differential_error = 0
 
+
     def spin_thread(self):
         """
         Thread function to process incoming messages and callbacks.
         """
+        self.get_logger().info("Starting subscription thread")
         rclpy.spin(self)
 
     def odometry_callback(self, msg):
@@ -49,32 +54,24 @@ class MovementController(Node):
         """
         with self.lock:
             self.odometry = msg
+            self.update_position(self.odometry)
 
-    def get_odometry(self):
-        """
-        Get the latest odometry data.
-        :return: Latest Odometry data.
-        """
-        with self.lock:
-            return self.odometry
 
-    def get_position_yaw(self, odometry):
+    def update_position (self, odometry):
         """
-        Extract the position and yaw from the odometry data.
+        Update the position and yaw from the odometry data.
         :param odometry: Odometry data.
-        :return: tuple (x, y, yaw) of the robot's position and yaw.
         """
-        x = odometry.pose.pose.position.x
-        y = odometry.pose.pose.position.y
+        self.x = odometry.pose.pose.position.x
+        self.y = odometry.pose.pose.position.y
         quaternion = (
             odometry.pose.pose.orientation.x,
             odometry.pose.pose.orientation.y,
             odometry.pose.pose.orientation.z,
             odometry.pose.pose.orientation.w,
         )
-        _, _, yaw = self.quaternion_to_euler(*quaternion)
+        _, _, self.current_yaw = self.quaternion_to_euler(*quaternion)
 
-        return x, y, yaw
 
     def quaternion_to_euler(self, x, y, z, w):
         """
@@ -148,6 +145,7 @@ class MovementController(Node):
         :param angle: Angle to turn left (in degrees).
         :param angular_speed: Angular speed at which to turn left.
         """
+        dir = 1
         # Check that angular speed is positive
         if angular_speed <= 0:
             raise ValueError("Angular speed must be positive")
@@ -160,8 +158,7 @@ class MovementController(Node):
         twist.angular.z = angular_speed
 
         # Call move_angle function with input parameters
-        angle_rad = math.radians(angle)
-        self.move_angle(angle_rad, twist)
+        self.move_angle(angle, twist, dir)
 
 
     def turn_right(self, angle, angular_speed):
@@ -170,6 +167,7 @@ class MovementController(Node):
         :param angle: Angle to turn right (in degrees).
         :param angular_speed: Angular speed at which to turn right.
         """
+        dir = -1
         # Check that angular speed is positive
         if angular_speed <= 0:
             raise ValueError("Angular speed must be positive")
@@ -182,8 +180,7 @@ class MovementController(Node):
         twist.angular.z = -angular_speed
 
         # Call move_angle function with input parameters
-        angle_rad = math.radians(angle)
-        self.move_angle(angle_rad, twist)
+        self.move_angle(angle, twist, dir)
 
     def move_distance(self, distance, twist):
         """
@@ -193,25 +190,21 @@ class MovementController(Node):
         """
 
         # Wait until odometry data is available
-        while self.get_odometry() is None:
+        while self.odometry is None:
             self.get_logger().warning("Waiting for odometry data")
             time.sleep(0.1)
 
+
         # Get initial odometry data and robot position
-        start_odometry = self.get_odometry()
-        start_position = start_odometry.pose.pose.position
+        start_position = self.x, self.y
         epsilon = 0.005
 
         # Move the robot forward until the desired distance is covered
         while True:
 
-            # Get current odometry data and robot position
-            current_odometry = self.get_odometry()
-            current_position = current_odometry.pose.pose.position
-
             # Calculate the distance the robot has moved since the start of the function
-            moved_distance = ((current_position.x - start_position.x) ** 2 +
-                              (current_position.y - start_position.y) ** 2) ** 0.5
+            moved_distance = ((self.x - start_position[0]) ** 2 +
+                              (self.y - start_position[1]) ** 2) ** 0.5
 
             error = distance - moved_distance
             if error > epsilon:
@@ -222,61 +215,34 @@ class MovementController(Node):
         # Stop the robot
         self.stop()
 
-    def move_angle(self, angle, twist):
+    def move_angle(self, turn_angle, twist, dire):
         """
-        Turn the robot left or right a specified angle at a specified twist (linear and angular velocity).
-        :param angle: Angle to turn (in radians).
-        :param twist: Twist message with linear and angular velocity set.
+        Set the angular velocity until final angle is reached
+        :param dire: 1 -> Left or -1 -> Right
+        :param turn_angle: int angle of rotation
         """
         # Wait until odometry data is available
-        start_odometry = self.get_odometry()
-        while start_odometry is None:
+        while self.odometry is None:
             self.get_logger().warning("Odometry data is not available yet")
             time.sleep(0.1)
 
-        # Get initial robot yaw angle
-        _, _, start_yaw = self.get_position_yaw(start_odometry)
-        self.get_logger().warning(f"start: {start_yaw}")
+        self._update_angle(dire * turn_angle)
+        epsilon = .08
 
-        epsilon = 0.08
 
-        # Calculate target angle
-        angle_deg = math.degrees(angle)
-        self._angle_target = self._angle_target + angle_deg
+        # Turn left
+        if dire == 1:
+            while self._calculate_angle(self.current_yaw) > epsilon and rclpy.ok():
 
-        while True:
-            # Get current robot yaw angle
-            current_odometry = self.get_odometry()
-            _, _, current_yaw = self.get_position_yaw(current_odometry)
-
-            # Calculate the angle error
-            error = self._angle_target - current_yaw
-            error = (error + math.pi) % (2 * math.pi) - math.pi
-            #self.get_logger().warning(f"error: {error}")
-            if abs(error) > epsilon:
                 self.cmd_vel_publisher.publish(twist)
-            else:
-                break
-        """
-        # Turn the robot until the desired angle is covered
-        while moved_angle < adjusted_angle:
-            # Publish Twist message to command velocity publisher
-            self.cmd_vel_publisher.publish(twist)
+                #time.sleep(0.1)
 
-            # Get current robot yaw angle
-            current_odometry = self.get_odometry()
-            _, _, current_yaw = self.get_position_yaw(current_odometry)
-
-            # Calculate the angle the robot has turned since the start of the function
-            moved_angle = abs(current_yaw - start_yaw)
-
-            self.differential_error = angle - moved_angle
-            # Normalize the angle
-            if moved_angle > math.pi:
-                moved_angle = 2 * math.pi - moved_angle
-        """
-        # Stop the robot
-        self.stop()
+        # Turn right
+        if dire == -1:
+            while self._calculate_angle(self.current_yaw) > epsilon and rclpy.ok():
+                self.get_logger().warning(f"Current yaw: {self.current_yaw}")
+                self.cmd_vel_publisher.publish(twist)
+                #time.sleep(0.1)
 
     def _calculate_angle(self, angle_current: float) -> float:
         """
@@ -289,6 +255,13 @@ class MovementController(Node):
             return dif
         else:
             return 2 * math.pi - dif
+
+    def _update_angle(self, angle: int) -> None:
+        """
+        Calculate the final angle, by adding an angle in degrees
+        :param angle: int angle (degrees)
+        """
+        self._angle_target = (self._angle_target + angle) % 360
 
     def stop(self):
         """
