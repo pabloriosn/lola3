@@ -71,6 +71,7 @@ class MovementController(Node):
             odometry.pose.pose.orientation.w,
         )
         _, _, self.current_yaw = self.quaternion_to_euler(*quaternion)
+        self.get_logger().warning(f"x: {self.x}, y: {self.y}, theta: {self.current_yaw}")
 
 
     def quaternion_to_euler(self, x, y, z, w):
@@ -200,8 +201,8 @@ class MovementController(Node):
         epsilon = 0.005
 
         # Move the robot forward until the desired distance is covered
-        while True:
-
+        while rclpy.ok():
+            self.get_logger().warning(f"posx: {self.x}, posy: {self.y}")
             # Calculate the distance the robot has moved since the start of the function
             moved_distance = ((self.x - start_position[0]) ** 2 +
                               (self.y - start_position[1]) ** 2) ** 0.5
@@ -210,6 +211,7 @@ class MovementController(Node):
             if error > epsilon:
                 # Publish Twist message to command velocity publisher
                 self.cmd_vel_publisher.publish(twist)
+                #time.sleep(0.1)
             else:
                 break
         # Stop the robot
@@ -227,20 +229,17 @@ class MovementController(Node):
             time.sleep(0.1)
 
         self._update_angle(dire * turn_angle)
-        epsilon = .08
-
+        epsilon = 0.08
 
         # Turn left
         if dire == 1:
             while self._calculate_angle(self.current_yaw) > epsilon and rclpy.ok():
-
                 self.cmd_vel_publisher.publish(twist)
                 #time.sleep(0.1)
 
         # Turn right
         if dire == -1:
             while self._calculate_angle(self.current_yaw) > epsilon and rclpy.ok():
-                self.get_logger().warning(f"Current yaw: {self.current_yaw}")
                 self.cmd_vel_publisher.publish(twist)
                 #time.sleep(0.1)
 
@@ -251,6 +250,7 @@ class MovementController(Node):
         :return: difference in radians
         """
         dif = (self._angle_target * math.pi / 180 - angle_current) % (360 * math.pi / 180)
+        self.get_logger().info(f"dif: {dif}")
         if dif < math.pi:
             return dif
         else:

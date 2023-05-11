@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install additional Python modules
-RUN pip3 install pyserial transforms3d
+RUN pip3 install pyserial transforms3d inputs keyboard pynput
 
 # Install additional ROS packages
 RUN apt-get update && apt-get install -y --no-install-recommends \

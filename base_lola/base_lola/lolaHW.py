@@ -69,7 +69,7 @@ class HWClass(Node):
 
         # Read and discard the first line of data from the Arduino device
         data = self.arduino.readline()
-        self.get_logger().info(f"DATA de la primera linea {data} ")
+        #self.get_logger().info(f"DATA de la primera linea {data} ")
 
         # Read the current encoder values
         self.steps_enc_left, self.time_enc_left, self.steps_enc_right, self.time_enc_right = self._read_encoder()
@@ -115,9 +115,13 @@ class HWClass(Node):
 
         # Calculate the elapsed time and distance travelled since the last measurement for the right and left wheel
         dt_right = float(time_enc_right - self.time_enc_right) * (10 ** -6)
+        if dt_right == 0:
+            dt_right = 1
         dsteps_right = float(steps_enc_right - self.steps_enc_right)
 
         dt_left = float((time_enc_left - self.time_enc_left) * (10 ** -6))
+        if dt_left == 0:
+            dt_left = 1
         dsteps_left = float(steps_enc_left - self.steps_enc_left)
 
         # Update the last measurement values for the right and left wheel
@@ -147,7 +151,7 @@ class HWClass(Node):
         self._wheel_pub.publish(msg)
 
         # Print velocity information
-        self.get_logger().info(f"The real left velocity is {wi}, and right {wd}")
+        #self.get_logger().info(f"The real left velocity is {wi}, and right {wd}")
 
     def _check_alive(self):
         """
@@ -179,7 +183,7 @@ class HWClass(Node):
         datoi = msg.velocity[1]  # formated
 
         # Log the data values (for debugging purposes)
-        self.get_logger().info(f"datod: {datod} y datoi: {datoi}")
+        #self.get_logger().info(f"datod: {datod} y datoi: {datoi}")
 
         # Send the data values to the Arduino device in the format 'V###' using a serial connection
         self.arduino.write(('V' + format(int(datod), '03d') + format(int(datoi), '03d')).encode())
