@@ -25,5 +25,4 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       # Mount the code volumes
       - ./base_lola:/lola_ws/src/base_lola
-      - ./move_lola:/lola_ws/src/move_lola
     command: bash

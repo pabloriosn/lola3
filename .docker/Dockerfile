@@ -20,7 +20,9 @@ RUN pip3 install pyserial transforms3d inputs keyboard pynput
 
 # Install additional ROS packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-humble-rviz2
+    ros-humble-rviz2 \
+    ros-humble-joy\
+    ros-humble-teleop-twist-joy
 
 # Remove display warnings
 RUN mkdir /tmp/runtime-root
@@ -31,6 +33,8 @@ ENV NO_AT_BRIDGE 1
 # Build the base Colcon workspace, installing any extra missed dependencies.
 RUN mkdir -p /$WORKSPACE/src
 WORKDIR /$WORKSPACE
+COPY logitech.config.yaml /opt/ros/$ROS_DISTRO/share/teleop_twist_joy/config/
+
 RUN source /opt/ros/$ROS_DISTRO/setup.bash \
     && apt-get update -y \
     && rosdep install --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y

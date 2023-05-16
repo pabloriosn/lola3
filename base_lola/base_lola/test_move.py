@@ -3,6 +3,7 @@ from base_lola.move_robot import MovementController
 import time
 
 def main(args=None):
+
     try:
         rclpy.init(args=args)
 
