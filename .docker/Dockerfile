@@ -41,8 +41,8 @@ RUN source /opt/ros/$ROS_DISTRO/setup.bash \
 
 # Create Colcon workspace with external dependencies
 WORKDIR /$WORKSPACE/src
-#COPY dependencies.repos ./
-#RUN vcs import < dependencies.repos
+COPY dependencies.repos ./
+RUN vcs import < dependencies.repos
 
 WORKDIR /$WORKSPACE
 

@@ -22,6 +22,12 @@ def generate_launch_description():
             package='base_lola',
             executable='controller_lola',
             name='odometry_calculator'
+        ),
+
+        Node(
+            package='base_lola',
+            executable='move',
+            name='move_robot'
         )
 
     ])
